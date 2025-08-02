@@ -4,6 +4,12 @@ import os
 import sys
 import requests
 import re
+import hmac
+import hashlib
+import base64
+import urllib.parse
+import time
+import secrets
 from datetime import datetime, timezone
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
@@ -13,17 +19,75 @@ from PIL import Image
 # Constants
 CSV_FILE = 'posts.csv'
 STATE_FILE = 'state.json'
-TWITTER_BEARER_TOKEN = os.environ.get('TWITTER_BEARER_TOKEN')
+API_KEY = os.environ.get('TWITTER_API_KEY')
+API_SECRET = os.environ.get('TWITTER_API_SECRET')
+ACCESS_TOKEN = os.environ.get('TWITTER_ACCESS_TOKEN')
+ACCESS_TOKEN_SECRET = os.environ.get('TWITTER_ACCESS_TOKEN_SECRET')
 REPO_ACTOR = os.environ.get('GITHUB_ACTOR', 'github-actions[bot]')
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
 
 # Twitter image size limit (in bytes) - 5MB for images
 MAX_IMAGE_SIZE = 4.5 * 1024 * 1024  # 4.5MB to be safe
 
+def create_oauth_signature(method, url, params, api_secret, token_secret):
+    """Create OAuth 1.0a signature for Twitter API."""
+    # Sort parameters
+    sorted_params = sorted(params.items())
+    
+    # Create parameter string
+    param_string = '&'.join([f"{k}={v}" for k, v in sorted_params])
+    
+    # Create signature base string
+    base_string = f"{method}&{urllib.parse.quote(url, safe='')}&{urllib.parse.quote(param_string, safe='')}"
+    
+    # Create signing key
+    signing_key = f"{urllib.parse.quote(api_secret, safe='')}&{urllib.parse.quote(token_secret, safe='')}"
+    
+    # Create signature
+    signature = base64.b64encode(
+        hmac.new(signing_key.encode(), base_string.encode(), hashlib.sha1).digest()
+    ).decode()
+    
+    return signature
+
+def create_oauth_header(method, url, params=None):
+    """Create OAuth 1.0a authorization header for Twitter API."""
+    if params is None:
+        params = {}
+    
+    # OAuth parameters
+    oauth_params = {
+        'oauth_consumer_key': API_KEY,
+        'oauth_nonce': secrets.token_urlsafe(32),
+        'oauth_signature_method': 'HMAC-SHA1',
+        'oauth_timestamp': str(int(time.time())),
+        'oauth_token': ACCESS_TOKEN,
+        'oauth_version': '1.0'
+    }
+    
+    # Combine OAuth params with request params for signature
+    all_params = {**oauth_params, **params}
+    
+    # URL encode all parameters
+    encoded_params = {k: urllib.parse.quote(str(v), safe='') for k, v in all_params.items()}
+    
+    # Create signature
+    signature = create_oauth_signature(method, url, encoded_params, API_SECRET, ACCESS_TOKEN_SECRET)
+    oauth_params['oauth_signature'] = signature
+    
+    # Create authorization header
+    oauth_header = 'OAuth ' + ', '.join([f'{k}="{urllib.parse.quote(str(v), safe="")}"' for k, v in oauth_params.items()])
+    
+    return oauth_header
+
 def main():
     # Validate environment variables
-    if not TWITTER_BEARER_TOKEN:
-        print("Error: Missing TWITTER_BEARER_TOKEN environment variable.")
+    if not all([API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_TOKEN_SECRET]):
+        print("Error: Missing Twitter API credentials. Need:")
+        print("- TWITTER_API_KEY")
+        print("- TWITTER_API_SECRET") 
+        print("- TWITTER_ACCESS_TOKEN")
+        print("- TWITTER_ACCESS_TOKEN_SECRET")
         sys.exit(1)
 
     try:
@@ -271,19 +335,17 @@ def upload_media_to_twitter(image_url):
         
         print(f"Uploading image to Twitter (final size: {len(processed_image_data)} bytes)")
         
+        # Create OAuth header for media upload
+        upload_url = 'https://upload.twitter.com/1.1/media/upload.json'
         headers = {
-            'Authorization': f'Bearer {TWITTER_BEARER_TOKEN}',
+            'Authorization': create_oauth_header('POST', upload_url),
         }
         
         files = {
             'media': ('image.jpg', processed_image_data, 'image/jpeg')
         }
         
-        upload_response = requests.post(
-            'https://upload.twitter.com/1.1/media/upload.json',
-            headers=headers,
-            files=files
-        )
+        upload_response = requests.post(upload_url, headers=headers, files=files)
         upload_response.raise_for_status()
         
         media_data = upload_response.json()
@@ -310,11 +372,6 @@ def extract_first_url(content):
 def post_to_twitter(content):
     """Post content to Twitter with proper formatting."""
     try:
-        headers = {
-            'Authorization': f'Bearer {TWITTER_BEARER_TOKEN}',
-            'Content-Type': 'application/json'
-        }
-
         # Prepare basic tweet data
         tweet_data = {
             "text": content
@@ -339,13 +396,15 @@ def post_to_twitter(content):
             else:
                 print("No image found for this URL")
 
-        # Post the tweet
+        # Post the tweet using OAuth 1.0a
+        tweet_url = 'https://api.twitter.com/2/tweets'
+        headers = {
+            'Authorization': create_oauth_header('POST', tweet_url),
+            'Content-Type': 'application/json'
+        }
+
         print(f"Posting tweet: {content}")
-        resp = requests.post(
-            'https://api.twitter.com/2/tweets',
-            headers=headers,
-            json=tweet_data
-        )
+        resp = requests.post(tweet_url, headers=headers, json=tweet_data)
         resp.raise_for_status()
         
         response_data = resp.json()
