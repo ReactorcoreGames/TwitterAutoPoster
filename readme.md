@@ -35,7 +35,7 @@ Congrats! Now you have your own copy of this tool! 🎉
 4. Each row will become one tweet
 5. Click **Commit changes** when done
 
-### Step 3: Get your Twitter API Bearer Token 🔑
+### Step 3: Get your Twitter API Credentials 🔑
 
 **Important:** You need Twitter API access (which requires approval) to use this tool.
 
@@ -43,17 +43,24 @@ Congrats! Now you have your own copy of this tool! 🎉
 2. Apply for a developer account (if you don't have one)
 3. Create a new App in your developer dashboard
 4. Go to your App's "Keys and tokens" section
-5. Generate a "Bearer Token"
-6. Copy the Bearer Token immediately (you won't see it again!)
+5. Generate and copy these **4 credentials**:
+   - **API Key** (Consumer Key)
+   - **API Key Secret** (Consumer Secret)
+   - **Access Token** 
+   - **Access Token Secret**
+6. Copy all credentials immediately (you won't see the secrets again!)
 
 **Note:** Twitter's API access requires approval and may take some time. Make sure you have a legitimate use case when applying.
 
-### Step 4: Add your Twitter Bearer Token to GitHub 🔒
+### Step 4: Add your Twitter API credentials to GitHub 🔒
 
 1. In your GitHub repository, click on **Settings**
 2. In the left sidebar, click on **Secrets and variables** → **Actions**
-3. Click **New repository secret**
-4. Create a secret named `TWITTER_BEARER_TOKEN` with your Bearer Token
+3. Click **New repository secret** and create these **4 secrets**:
+   - `TWITTER_API_KEY` - paste your API Key
+   - `TWITTER_API_SECRET` - paste your API Key Secret
+   - `TWITTER_ACCESS_TOKEN` - paste your Access Token
+   - `TWITTER_ACCESS_TOKEN_SECRET` - paste your Access Token Secret
 
 ### Step 5: Create initial state file 📄
 
@@ -113,7 +120,8 @@ Want to post more or less frequently? You can change the schedule by editing the
 **Getting API errors?**
 - Ensure your Twitter app has the correct permissions (Read and Write)
 - Check if you've hit any rate limits
-- Verify your Bearer Token hasn't expired
+- Verify all 4 Twitter API credentials are correct and haven't expired
+- Make sure your Access Token has write permissions
 
 **Need to pause posting?**
 - Go to Settings → Actions → General
