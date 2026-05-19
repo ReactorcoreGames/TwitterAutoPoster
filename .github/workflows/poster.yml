@@ -9,13 +9,13 @@ jobs:
     permissions:
       contents: write       # needed for pushing changes
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
       - name: Install dependencies
-        run: pip install requests beautifulsoup4 pillow
+        run: pip install requests
       - name: Run poster script
         env:
           TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
